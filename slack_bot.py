@@ -323,7 +323,14 @@ WHERE name in ({names_str}) and mag < 50",con)
 
     for name in list_names:
         message = []
-        message.append(name)
+
+        #fritz url prefix for sources
+        url_prefix = "https://fritz.science/source"
+        hyperlinked_name = f"<{url_prefix}/{name}|{name}>"
+        # message.append(name)
+
+        #send the name of the source with fritz link hyperlinked
+        message.append(hyperlinked_name)
 
         pid_cand = pid_all[pid_all['name'] == name]
         # Do not show if there are no programid=3 detections
@@ -401,7 +408,9 @@ i: {'{:.2f}'.format(ti['index_fade_stack_i'].values[0])} mag/d")
             plt.close(fig)
 
         message.append("------")
-        list_out.append(name)
+        # list_out.append(name)
+        #Append the namea of the source with fritz link hyperlinked
+        list_out.append(hyperlinked_name)
 
         if not message: continue
         web_client.chat_postMessage(
