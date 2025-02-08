@@ -150,7 +150,9 @@ def check_marshal_sources(sources_kowalski, marshal_sources, program_name):
 def read_skymap(skymap_filename):
     '''Read the healpix skymap'''
 
-    hpx = hp.read_map(skymap_filename, verbose = False)
+    import ligo.skymap.io
+    #hpx = hp.read_map(skymap_filename, verbose = False)
+    hpx, meta = ligo.skymap.io.fits.read_sky_map(skymap_filename)
 
     return hpx
 
@@ -302,7 +304,9 @@ def select_sources_in_level(sources, skymap_filename, level=90):
     """Select only those sources within a given contour
     level of the skymap"""
 
-    skymap_prob = hp.read_map(skymap_filename, field=0, verbose=False)
+    #skymap_prob = hp.read_map(skymap_filename, field=0, verbose=False)
+    import ligo.skymap.io
+    skymap_prob, meta = ligo.skymap.io.fits.read_sky_map(skymap_filename)
     skyimap_prob = skymap_prob / np.sum(skymap_prob)
     sort_idx = np.argsort(skymap_prob)[::-1]
     csm = np.empty(len(skymap_prob))
@@ -416,7 +420,7 @@ if __name__ == "__main__":
             else:
                 sources = []
                 for r, d in zip(args.ra_center, args.dec_center):
-                    sources.append({"ra":float(r), "dec":float(d)})
+                    sources.append({"name": "-", "ra":float(r), "dec":float(d)})
             sources_within = select_sources_in_level(sources, args.skymap_filename, args.level)
             string_out=""
             for source in sources:
