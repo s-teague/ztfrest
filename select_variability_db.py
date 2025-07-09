@@ -23,12 +23,12 @@ from scipy import optimize
 from ztfquery import query
 from astroquery.vizier import Vizier
 
-from functions_db import connect_database
+from functions_db import connect_database, connect_database_pd
 
 Vizier.ROW_LIMIT = 999999999  # Remove the limit of 50 rows
 
 
-
+########### this will be updated w/ nat's code ############
 def stack_lc(tbl, days_stack=1., snt_det=3, snt_ul=5):
     """Given a dataframe with a maxlike light curve,
     stack the flux """
@@ -149,10 +149,10 @@ def do_fit(errfunc, pinit, time, mag, magerr):
 
     return pfinal, covar, index, amp, indexErr, ampErr
 
-
+#############################################################################################################
 def select_variability(tbl, hard_reject=[], update_database=False,
                        read_database=True,
-                       use_forced_phot=False, stacked=False,
+                       use_forcephotztf=False, stacked=False,
                        baseline=0.02, var_baseline={'g': 6, 'r': 8, 'i': 10},
                        max_duration_tot=30., max_days_g=1e5, snr=4,
                        index_rise=-0.0, index_decay=0.0,
@@ -185,8 +185,8 @@ def select_variability(tbl, hard_reject=[], update_database=False,
     read_database bool
         if True, it reads light curves from the psql database
 
-    use_forced_phot bool
-        if True, forced ForcePhotZTF photometry will be used;
+    use_forcephotztf bool
+        if True, forced ForcePhotZTF photometry from db will be used;
         if False, only alerts will be considered.
 
     stacked bool
@@ -279,17 +279,33 @@ def select_variability(tbl, hard_reject=[], update_database=False,
         list of candidates without enough information to tell
         if they meet the input selection criteria
     """
-
+    #testname = 'ZTF25aavmqcp' # candidate for which I want to see why it wasn't selected
+    #testname = 'ZTF25aavvzbx'
+    #testname = 'ZTF25aaxjntk' # Ia for igor
+    #testname = 'ZTF25aaxxchz' #ztfrest 06/30 - intersting
+    #testname = 'ZTF25aaztrqi' # selected 7/9
+    #testname = 'ZTF25aazsgsc' #selected 7/9
+    #testname = 'ZTF25aazohsf' #selected 7/8
+    testname = 'ZTF25aazshbz'
+    #testname = 'ZTF25aaztfnv'
+    print(f"Candidate for testing: {testname}")
     # Useful definitions, specific for ZTF
     candidates = set(tbl["name"])
     filters = ['g', 'r', 'i']
     filters_id = {'1': 'g', '2': 'r', '3': 'i'}
-    colors = {'g': 'g', 'r': 'r', 'i': 'y'}
+    colors = {'g': 'g', 'r': 'r', 'i': 'y'} # for plotting
 
     if update_database is True or read_database is True:
         # Connect to psql db
-        con, cur = connect_database(update_database=update_database,
-                                    path_secrets_db=path_secrets_db)
+        con, cur = connect_database(update_database=update_database, path_secrets_db=path_secrets_db)
+        if con.closed==0:
+            print("Connected to psql db")
+        # Updated to connecting via sqlalchemy so it doesn't throw a Warning when pandas read_sql_query is used
+        #from sqlalchemy import text
+        #con = connect_database_pd(update_database=update_database, path_secrets_db=path_secrets_db)
+        #cur = con.connect()
+        # if update_database: need to update all `cur.execute()` statements with cur.execute(text(original str)) to comply w/ sqlalchemy syntax.
+        # but I don't know if that will screw things up so I'll just let it throw errors for now.
 
     if save_plot is True:
         if not os.path.isdir(path_plot):
@@ -303,7 +319,7 @@ def select_variability(tbl, hard_reject=[], update_database=False,
     empty_lc = []
 
     # Get forced phot for all the candidates
-    if read_database is True and use_forced_phot is True:
+    if read_database is True and use_forcephotztf is True:
         str_names = "'" + "','".join(candidates) + "'"
         # table name
         if stacked is True:
@@ -325,19 +341,22 @@ for any of the given candidates!")
 
             return None, None, None
 
-        t_forced = Table.from_pandas(t_pd)
-
+        t_forced = Table.from_pandas(t_pd) # table of forced photometry from psql database
+        
+    if testname not in candidates:
+        print("It wasn't even in there to begin with")
     for name in candidates:
         # Is the candidate to be ignored?
         if name in hard_reject:
             continue
         # Check if the forced photometry light curve is available
-        if use_forced_phot is True:
+        if use_forcephotztf is True:
             with_forced_phot = True
             if read_database is True:
-                t = t_forced[t_forced['name'] == name]
+                t = t_forced[t_forced['name'] == name] # data for the candidate
             else:
                 # Read the light curve from a file
+                print("reading light curves from a file")
                 files = glob.glob(f"{path_forced}/*{name}*maxlike*fits")
                 if len(files) == 0:
                     print(f"No forced photometry available for {name}: skipping")
@@ -353,7 +372,7 @@ for any of the given candidates!")
             if len(t) == 0:
                 empty = True
                 empty_lc.append(name)
-                print(f"Empty forced photometry light curve for {name}: skipping")
+                #print(f"Empty forced photometry light curve for {name}: skipping") # ForcePhotZTF can only work w/ private data (id=2)
                 continue
                 # Keep going with only the alerts?
                 #t = tbl[tbl['name'] == name]
@@ -361,7 +380,7 @@ for any of the given candidates!")
             else:
                 t_ul = t[t["mag"] > 50]
                 t = t[t["mag"] < 50]
-                # Fix the column names
+                # Fix the column names - to match avro schema
                 t.rename_column('mag', 'magpsf')
                 t.rename_column('mag_unc', 'sigmapsf')
                 if read_database is False:
@@ -410,16 +429,42 @@ for any of the given candidates!")
         else:
             with_forced_phot = False
             empty = False
-            t = tbl[tbl['name'] == name]
+            t = tbl[tbl['name'] == name] # get all rows for this candidate from input table
+            if 'origin' in t.keys():
+                nondets = t[t['origin'] == 'magul'] # separate out upper limits
+                t = t[t['origin'] != 'magul'] # drop measurements designated as upper limits
             t_ul = t[:0].copy()
+            
+            # FOR TESTING ONLY - remove later updates to light curve, as if the candidate just picked up by the pipeline
+            if len(t) != 0:
+                t.add_index('jd') # necessary to remove rows
+                cutoffdate = min(t['jd']) + 10
+                if name == testname:
+                    print(f"Cutoff date: {cutoffdate}")
+                for jd in list(t['jd']):
+                    if jd > cutoffdate:
+                        t.remove_row(t.loc_indices[jd])
+                t.remove_indices('jd') # necessary to avoid a random bug
+            if name == testname and 'limmag5sig' in list(t.keys()):
+                t['jd','magpsf','sigmapsf','limmag5sig','filter','origin','programid'].pprint()
 
         # Reject those with only upper limits
         if len(t) == 0 and empty is False:
             names_reject.append(name)
+            if name == testname:
+                print("It was rejected bc it only has UL's")
             continue
 
         # Determine the light curve starting time
         t0 = min(t["jd"])
+
+        # for testing historical candidates
+        #if name == testname:
+        #    t.add_index('jd')
+        #    cutoffdate = t0 + 10
+        #    for jd in list(t['jd']):
+        #        if jd > cutoffdate:
+        #            t.remove_row(t.loc_indices[jd])
 
         # Reject if the overall duration is longer than ??  days
         # or if there is only 1 detection
@@ -431,6 +476,8 @@ for any of the given candidates!")
                             where name = '{name}'")
             if np.max(t['jd']) - np.min(t['jd']) > max_duration_tot or np.max(t['jd']) - np.min(t['jd']) == 0:
                 names_reject.append(name)
+                if name == testname:
+                    print("It was rejected because its overall duration was longer than 15 days")
                 continue
         except ValueError:
             print("Failed calculating max(t['jd']) - min(t['jd']) > 10.")
@@ -447,7 +494,14 @@ for any of the given candidates!")
         #print(f"-------- {name}")
 
         for f in filters:
+            if name == testname:
+                print(f'filter: {f}')
             tf = t[t['filter'] == f]
+            #if name == testname and f=='r':
+            #    tf.add_index('jd')
+            #    tf.remove_row(tf.loc_indices[2460853.7807523])
+            #    tf.remove_row(tf.loc_indices[2460853.8899074])
+            #    print(tf['jd'])
             if len(tf) == 0:
                 continue
             if use_metadata is False:
@@ -460,7 +514,7 @@ for any of the given candidates!")
                     plt.plot([],[], 'kv', label='UL')
             # Correct the start time
             tf["jd"] = tf["jd"] - t0
-
+            
             #brightest, faintest detections
             bright = np.min(tf["magpsf"])
             try:
@@ -479,6 +533,9 @@ for any of the given candidates!")
             # First and last detections
             first = np.min(tf["jd"])
             last = np.max(tf["jd"])
+            
+            if name == testname:
+                print(f"Last - First: {last-first}; baseline for {f}: {var_baseline[f]}")
 
             # Add the information regarding the duration in the db
             # duration_g is the max number of days between the first
@@ -513,17 +570,23 @@ for any of the given candidates!")
 
             # SELECT: not enough baseline - no action taken
             if np.abs(last-first) < baseline:
+                if name == testname:
+                    print(f"It's in cantsay because last-first < {baseline}")
                 continue
 
             # SELECT: no variability between the first and last detection - rejection
             if bright+brighterr > faint-fainterr and np.abs(bright_jd - faint_jd) >= var_baseline[f]:
                 names_reject.append(name)
+                if name == testname:
+                    print("It was rejected because there was no variability between first/last detections")
                 continue
 
             # SELECT: if a g-band detection is present xx days
-	    # after the first detection, reject
+            # after the first detection, reject
             if f == 'g' and np.max(tf['jd']) > max_days_g:
                 names_reject.append(name)
+                if name == testname:
+                    print("It was rejected bc a g-band detection was present more than 7 days after first detection")
                 continue
 
             onlyrise = False
@@ -531,6 +594,8 @@ for any of the given candidates!")
 
             if bright_jd < first + baseline:
                 onlyfade = True
+                if name == testname:
+                    print("Fade only")
                 riseorfade = 'fade'
                 # Some info may be stored that we want to remove
                 if update_database is True and with_forced_phot is False:
@@ -548,6 +613,8 @@ for any of the given candidates!")
 
             elif bright_jd > last - baseline:
                 onlyrise = True
+                if name == testname:
+                    print("Rise only")
                 riseorfade = 'rise'
                 if update_database is True and with_forced_phot is False:
                     cur.execute(f"UPDATE candidate SET \
@@ -571,7 +638,8 @@ for any of the given candidates!")
                 pfinal, covar, index, amp, indexErr, ampErr = do_fit(errfunc, pinit, time, mag, magerr)
                 plt.plot(time, fitfunc(pfinal, time), color=colors[f],
                          label=f"{f}, index= {'{:.2f}'.format(index)}+-{'{:.2f}'.format(indexErr)}")
-
+                if name == testname:
+                    print(f"filter {f} index: {index}")
                 # Add info to the database
                 if update_database is True and with_forced_phot is False:
                     cur.execute(f"UPDATE candidate SET \
@@ -587,20 +655,30 @@ for any of the given candidates!")
                                 where name = '{name}'")
 
                 # SELECT: slow evolution over a time longer than the baseline
-                if ((index > 0 and index <= index_decay) and
+                if ((index > 0 and index <= index_decay) and     # decaying too slow
                     (last-first) > var_baseline[f]):
                     names_reject.append(name)
-                elif ((index < 0 and index >= index_rise) and
+                    if name == testname:
+                        print("Rejected bc decay less than decay index")
+                elif ((index < 0 and index >= index_rise) and    # rising too slow
                     (last-first) > var_baseline[f]):
                     names_reject.append(name)
+                    if name == testname:
+                        print("Rejected bc rise less than rise index (in abs value)")
                 # Selection based on the index!
+                # elif ((index < 0 and index < index_rise) and
+                    # (last-first) > var_baseline[f]) or ((index > 0 and index > index_rise) and
+                    # (last-first) > var_baseline[f]): 
                 elif ((index < 0 and index < index_rise) and
-                    (last-first) > var_baseline[f]) or ((index > 0 and index > index_rise) and
-                    (last-first) > var_baseline[f]): 
+                    (last-first) < var_baseline[f]) or ((index > 0 and index > index_decay) and
+                    (last-first) < var_baseline[f]):
+                    if name == testname:
+                        print(f"Selected because rising/decaying fast enough in {f}")
                     plotted = True
             else:
-                indexrise = np.where(time <= bright_jd)
-                indexfade = np.where(time >= bright_jd)
+                indexrise = np.where(time <= bright_jd) # jds before peak - slope fit
+                indexfade = np.where(time >= bright_jd) # jds after peak - slope fit
+                
                 for i, riseorfade in zip([indexrise, indexfade], ['rise', 'fade']):
                     time_new = time[i[0]]
                     mag_new = mag[i[0]]
@@ -622,6 +700,8 @@ for any of the given candidates!")
                         if (bright+brighterr > faint_new - fainterr_new and
                             np.abs(faint_jd_new - bright_jd) >= var_baseline[f]):
                             names_reject.append(name)
+                            if name == testname:
+                                print("Rejected bc no evolution")
                             plt.errorbar(time, mag, yerr=magerr,
                                          fmt=colors[f]+'.',
                                          markeredgecolor='k',
@@ -631,6 +711,10 @@ for any of the given candidates!")
                         print(bright, brighterr, faint_new, fainterr_new)
                         pdb.set_trace()
                     pfinal, covar, index, amp, indexErr, ampErr = do_fit(errfunc, pinit, time_new, mag_new, magerr_new)
+                    if name == testname and index < 0:
+                        print(f"{f} rise index: {index}")
+                    elif name ==testname and index > 0:
+                        print(f"{f} fade index: {index}")
                     plt.plot(time_new, fitfunc(pfinal, time_new),
                              color=colors[f],
                              label=f"{f}, index= {'{:.2f}'.format(index)}+-{'{:.2f}'.format(indexErr)}")
@@ -652,15 +736,25 @@ for any of the given candidates!")
                     if ((index > 0 and index <= index_decay) and
                         (last-first) > var_baseline[f]):
                         names_reject.append(name)
+                        if name == testname:
+                            print("Rejected bc decay too slow")
                     elif ((index < 0 and index >= index_rise) and
                         (last-first) > var_baseline[f]):
                         names_reject.append(name)
+                        if name == testname:
+                            print("Rejected bc rise too slow")
                     # Selection based on the index!
+                    # elif ((index < 0 and index < index_rise) and
+                        # (last-first) > var_baseline[f]) or ((index > 0 and index > index_rise) and
+                        # (last-first) > var_baseline[f]):
                     elif ((index < 0 and index < index_rise) and
-                        (last-first) > var_baseline[f]) or ((index > 0 and index > index_rise) and
-                        (last-first) > var_baseline[f]):
+                        (last-first) < var_baseline[f]) or ((index > 0 and index > index_decay) and
+                        (last-first) < var_baseline[f]):
+                        if name == testname:
+                            print(f"It was selected bc rising/decaying fast enough in {f}")
                         plotted = True
-
+        # if (last-first) < var_baseline[f] -- not enough information to say
+        # check sign ??? confusion
         if name in names_reject:
             plt.close()
             continue
@@ -671,7 +765,7 @@ for any of the given candidates!")
 
         if plotted is True and (show_plot is True or save_plot is True):
             # The following is for the file naming
-            if use_forced_phot is True:
+            if use_forcephotztf is True:
                 forcedbool = 1
             else:
                 forcedbool = 0
@@ -760,15 +854,22 @@ for any of the given candidates!")
         cur.close()
         con.close()
 
-    print(f"{len(set(empty_lc))} empty light curves")
-    print(f"Select {set(names_select)}")
-    print(f"Reject {set(names_reject)}")
+
+    print(f"{len(set(empty_lc))} out of {len(candidates)} light curves are empty")
+    print(f"Selected: {set(names_select)}")
+    #print(f"Reject {set(names_reject)}")
     cantsay = list(n for n in candidates if
                    not (n in names_select) and not (n in names_reject))
     print(f"Cannot say {set(cantsay)}")
     print(f"{len(set(names_reject))}/{len(candidates)} objects rejected")
     print(f"{len(set(names_select))}/{len(candidates)} objects selected")
     print(f"{len(set(cantsay))}/{len(candidates)} objects cannot say")
+    if testname in cantsay:
+        print(f"{testname} was in cantsay")
+    elif testname in names_reject:
+        print(f"{testname} was rejected")
+    elif testname in names_select:
+        print(f"{testname} was SELECTED!!!")
 
     return names_select, names_reject, cantsay
 
@@ -806,7 +907,7 @@ if __name__ == "__main__":
     update_database = False
 
     # Use forced photometry, if available:
-    use_forced_phot = True
+    use_forcephotztf = True
 
     # Do you want to stack the photometry?
     stacked = True
@@ -814,7 +915,7 @@ if __name__ == "__main__":
     selected, rejected, cantsay = select_variability(tbl,
                        hard_reject=[], update_database=False,
                        read_database=True,
-                       use_forced_phot=True, stacked=False,
+                       use_forcephotztf=True, stacked=False,
                        baseline=1.0, var_baseline={'g': 6, 'r': 8, 'i': 10},
                        max_duration_tot=15., max_days_g=10, snr=4,
                        index_rise=index_rise, index_decay=index_decay,
