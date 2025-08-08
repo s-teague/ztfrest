@@ -1,6 +1,8 @@
 """
 Originally developed at
 https://github.com/igorandreoni/kowalski-searches/blob/master/get_lc_kowalski.py
+
+modified by Sarah Teague (steague1@unc.edu)
 """
 
 __author__ = "Igor Andreoni"
@@ -17,8 +19,8 @@ from penquins import Kowalski
 
 
 def get_lightcurve_alerts_aux(username, password, list_names):
-    """Query the light curve for a list of candidates (via Kowalski query)"""
-    """ Get 3 < SNR < 5sig detections from previous fields in ZTF_alerts_aux"""
+    """Query Kowalski for a list of candidates"""
+    """ Get 3 < SNR < 5 detections from previous fields in ZTF_alerts_aux"""
 
     k = Kowalski(username=username, password=password, verbose=False)
     q = {"query_type": "find",
@@ -48,9 +50,14 @@ def get_fphists_alerts_aux(username, password, list_names):
     """Given a list of candidates, obtain forced photometry from the alerts.
        Updated schema vsns >= 4 now have forced phot as part of the alert packets."""
     k = Kowalski(username=username, password=password, verbose=False)
+    proj = {'_id':1, 'fp_hists.jd':1, 'fp_hists.alert_ra':1, 'fp_hists.alert_dec':1,
+            'fp_hists.mag':1, 'fp_hists.magerr':1, 'fp_hists.fid':1, 'fp_hists.magzpsci':1,
+            'fp_hists.magzpsciunc':1, 'fp_hists.programid':1, 'fp_hists.field':1,
+            'fp_hists.rcid':1, 'fp_hists.pid':1, 'fp_hists.limmag5sig':1, 'fp_hists.diffmaglim':1,
+            'fp_hists.snr':1, 'fp_hists.forcediffimflux':1, 'fp_hists.forcediffimfluxunc':1}
     q = {"query_type":"find", "query": {"catalog":"ZTF_alerts_aux", 
                                         "filter":{'_id': {'$in': list(list_names)}},
-                                        "projection": {}},"kwargs":{"hint": "_id_"}}
+                                        "projection": proj},"kwargs":{"hint": "_id_"}}
     r = k.query(query=q)
     if r.get("default").get("data") == []:
         print("No candidates to be checked?")
@@ -58,14 +65,14 @@ def get_fphists_alerts_aux(username, password, list_names):
     out = []
     for l in r.get("default").get("data"):
         if 'fp_hists' in l.keys():
-            with_det = list({'objectId': l['_id'], 'candidate': s} for s in l['fp_hists'] if 'mag' in s.keys())
+            with_det = list({'objectId': l['_id'], 'fp_hists': s} for s in l['fp_hists'])
             out = out + with_det
 
     return out
 
 def get_lightcurve_alerts(username, password, list_names):
     """Query the light curve for a list of candidates"""
-    """ Get the >5 sig alerts from ZTF_alerts"""
+    """ Get the >=5sig alerts from ZTF_alerts"""
 
     k = Kowalski(username=username, password=password, verbose=False)
     q = {"query_type": "find",
@@ -177,32 +184,48 @@ def create_tbl_lc_fphists(light_curves, outfile=None):
     
     filters = {'1': 'g', '2': 'r', '3': 'i'}
     # same headers so this table can be stacked w/ the others; but schema are different 
-    tbl = Table([[], [], [], [], [], [], [], [], [], [], [], [], [], [], [],
-                 [], [], [], [], [], [], []],
-                names=('name', 'ra', 'dec', 'jd', 'isdiffpos', 'magpsf', 'sigmapsf', 'limmag5sig',
+    tbl = Table([[], [], [], [], [], [], [], [],
+                 [], [], [], [], [], [], [], [], [], []],
+                names=('name', 'ra', 'dec', 'jd', 'magpsf', 'sigmapsf', 'limmag', 'snr',
                        'filter', 'magzpsci', 'magzpsciunc',
                        'programid', 'field', 'rcid', 'pid',
-                       'sgscore1', 'sgscore2', 'sgscore3',
-                       'distpsnr1', 'distpsnr2', 'distpsnr3', 'origin'),
-                dtype=('S12', 'double', 'double', 'double', 'S',
-                       'f', 'f', 'f', 'S', 'f', 'f', 'i', 'i', 'i', 'int_',
-                       'f', 'f', 'f', 'f', 'f', 'f','S'))
+                       'forcediffimflux', 'forcediffimfluxunc', 'origin'),
+                dtype=('S12', 'double', 'double', 'double',
+                       'f', 'f', 'f', 'f', 'S', 'f', 'f', 'i', 'i', 'i', 'int_',
+                       'f', 'f', 'S'))
     jd_done = []
     for l in light_curves:
-        if (l["objectId"], l["candidate"]["jd"]) in jd_done:
+        if (l["objectId"], l["fp_hists"]["jd"]) in jd_done:
             continue
         else:
-            jd_done.append((l["objectId"], l["candidate"]["jd"]))
-        magzpsci = l["candidate"].get("magzpsci")
-        magzpsciunc = l["candidate"].get("magzpsciunc")
-        
-        row = [l["objectId"], l["candidate"]["alert_ra"], l["candidate"]["alert_dec"],
-            l["candidate"]["jd"], "t", l["candidate"]["mag"],
-            l["candidate"]["magerr"], l['candidate']['limmag5sig'], filters[str(l["candidate"]["fid"])],
+            jd_done.append((l["objectId"], l['fp_hists']["jd"]))
+        magzpsci = l['fp_hists'].get("magzpsci")
+        magzpsciunc = l['fp_hists'].get("magzpsciunc")
+        mag = l['fp_hists']['mag'] if 'mag' in l['fp_hists'].keys() else np.nan
+        magerr = l['fp_hists']['magerr'] if 'magerr' in l['fp_hists'].keys() else np.nan
+        flux = l['fp_hists']['forcediffimflux'] if 'forcediffimflux' in l['fp_hists'].keys() else np.nan
+        fluxunc = l['fp_hists']['forcediffimfluxunc'] if 'forcediffimfluxunc' in l['fp_hists'].keys() else np.nan
+
+        if 'snr' in l['fp_hists'].keys():
+            snr = l['fp_hists']['snr']
+        else: # ??
+            continue
+        #if snr < 0:
+            #continue
+        # separate out upper limits; define if snr < 3. (could be adjusted)
+        if snr < 3.:
+            origin = 'magul'
+        else:
+            origin = 'alertfp'
+        limmag = l['fp_hists']['limmag5sig'] if 'limmag5sig' in l['fp_hists'].keys() else l['fp_hists']['diffmaglim']
+        # may want to change it to 'limmag3sig' instead...?
+        row = [l["objectId"], l['fp_hists']["alert_ra"], l['fp_hists']["alert_dec"],
+            l['fp_hists']["jd"], mag,
+            magerr, limmag, snr, filters[str(l['fp_hists']["fid"])],
             magzpsci, magzpsciunc,
-            l["candidate"]["programid"], l["candidate"]["field"],
-            l["candidate"]["rcid"], np.array(l["candidate"]["pid"]).astype('uint64'),
-            np.nan, np.nan, np.nan, np.nan, np.nan, np.nan, 'alertfp']
+            l['fp_hists']["programid"], l['fp_hists']["field"],
+            l['fp_hists']["rcid"], np.array(l['fp_hists']["pid"]).astype('uint64'),
+            flux, fluxunc, origin]
         
         tbl.add_row(row)
     # Remove exact duplicates
@@ -213,6 +236,41 @@ def create_tbl_lc_fphists(light_curves, outfile=None):
 
     return tbl
 
+def create_tbl_alert_fp(lcs_alerts, lcs_fphists, outfile=None):
+    '''create a table of alert photometry + alert forced photometry.
+       include fp with SNR < 3 as upper limits (check threshold) 
+       as well as prv data (need to add?)
+       
+       current rows: name, ra, dec, jd, magpsf, sigmapsf, limmag5sig,
+                     snr, filter, magzpsci, magzpsciunc, programid, 
+                     field, rcid, pid, sgscore1, sgscore2, sgscore3,
+                     distpsnr1, distpsnr2, distpsnr3, origin     '''
+    tbl_alerts = create_tbl_lc(lcs_alerts)
+    tbl_fphists = create_tbl_lc_fphists(lcs_fphists)
+    #tbl_prv = create_tbl_lc(lcs_prv)
+    
+    list_names = list(tbl_alerts['name'])
+    tbllsalerts = []
+    for name in list_names:
+        talert = tbl_alerts[tbl_alerts['name'] == name]
+        talert.add_index('jd')
+        tfp = tbl_fphists[tbl_fphists['name']== name]
+        # check whether there is an alert that has fp on the same jd; if so, remove alert measurement
+        for jd in list(talert['jd']):   
+            if jd in list(tfp['jd']): # tbl_alerts.remove_row(index where name==name and jd is jd)
+                #print(f"Removing JD {jd} in alerts for {name} (duplicate jd)")
+                talert.remove_row(talert.loc_indices[jd])
+        tbllsalerts.append(talert)
+    tbl_alerts = vstack(tbllsalerts)
+    
+    # Designate non-significant FP as upper limit (if SNR < 3). Otherwise, detection: treat it the same as an alert
+    for row in tbl_fphists:
+        if row['snr'] < 3.0:
+            row['origin'] = 'magul' # mag upper limit
+    tbl_alert_fp = vstack([tbl_alerts,tbl_fphists])
+    tbl_alert_fp.sort('jd')
+    
+    return tbl_alert_fp
 
 if __name__ == "__main__":
     import argparse

@@ -12,6 +12,7 @@ from astropy.cosmology import Planck15 as cosmo
 from astropy.io.misc.hdf5 import read_table_hdf5
 import pandas as pd
 import psycopg2
+from sqlalchemy import create_engine
 
 
 def connect_database(update_database=False, path_secrets_db='db_access.csv',
@@ -58,6 +59,35 @@ password={info_db['password'][0]}"
 
     return con, cur
 
+def connect_database_pd(update_database=False, path_secrets_db='db_access.csv',
+                     dbname=None):
+    """ Connect to psql database via sqlalchemy for use with pandas """
+    
+# Read the secrets
+    info = ascii.read(path_secrets_db, format='csv')
+    # Admin access only if writing is required
+    if update_database is True and dbname is None:
+        info_db = info[info['db'] == 'db_kn_rt_admin']
+    elif update_database is False and dbname is None:
+        info_db = info[info['db'] == 'db_kn_rt_user']
+    elif update_database is True and dbname is not None:
+        info_db = info[info['db'] == dbname]
+    elif update_database is False and dbname is not None:
+        info_db = info[info['db'] == dbname]
+    if gethostname() == 'usnik':
+        host = 'localhost'
+    else:
+        host = info_db['host'][0]
+
+    user = info_db['user'][0]
+    password = info_db['password'][0]
+    port = info_db['port'][0]
+    dbname = info_db['dbname'][0]
+    url = "postgresql://{0}:{1}@{2}:{3}/{4}".format(user,password,host,port,dbname)
+    
+    con = create_engine(url)
+
+    return con
 
 def add_cv(con, cur, filename):
     """Check which names are in the CV list"""
@@ -835,6 +865,9 @@ def create_table_lightcurve_stacked(con, cur):
     # commit the changes
     con.commit()
 
+def populate_table_lightcurve_alertfp(con,cur,tbl):
+    pass
+    
 
 def populate_table_lightcurve_forced(con, cur, tbl, targetdir_base,
                                      programids=[1,2,3]):
@@ -879,14 +912,14 @@ def populate_table_lightcurve_forced(con, cur, tbl, targetdir_base,
                         VALUES ({marks})",
                         values)
 
-    con.commit()
+    con.commit() 
 
 
 def populate_table_lightcurve_stacked(con, cur, names):
     """Populate the table with stacking of forced photometry measurements
     from the forced photometry light curve in the psql db"""
     from select_variability_db import stack_lc
-
+    
     # Files to skip
     names_str = "'" + "','".join(list(names)) + "'"
     cur.execute(f"select name, jd from lightcurve_stacked \
@@ -1018,6 +1051,15 @@ def populate_gal_lat(con, cur):
     # Commit the changes
     con.commit()
 
+def get_table_names(con,cur):
+    cur.execute("SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema') AND table_type='BASE TABLE';")
+    tables = [table[0] for table in cur.fetchall()]
+    return tables
+def get_col_names(tblname, con, cur):
+    cur.execute(f"SELECT * FROM {tblname} LIMIT 0")
+    colnames = [desc[0] for desc in cur.description]
+    return colnames
+
 
 if __name__ == '__main__':
 
@@ -1032,7 +1074,7 @@ if __name__ == '__main__':
 port={info_db['port'][0]} user={info_db['user'][0]} \
 password={info_db['password'][0]}"
 
-    con, cur = connect_database(update_database=True,
+    con, cur = connect_database(update_database=False,
                                 path_secrets_db='db_access.csv')
  
     # Create the tables
