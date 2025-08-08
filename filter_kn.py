@@ -13,7 +13,7 @@ from astropy import units as u
 from astropy.coordinates import SkyCoord
 from astropy.io import ascii
 from astropy.time import Time, TimeDelta
-from astropy.table import vstack
+from astropy.table import vstack, Table
 
 from penquins import Kowalski
 from functions_db import connect_database
@@ -550,23 +550,26 @@ and {date_end.iso}")
         if light_curves_fp is not None and light_curves_alerts is not None:
             tbl_only_alerts = create_tbl_lc(light_curves_alerts)
             tbl_only_fphists = create_tbl_lc_fphists(light_curves_fp)
+            tbl_only_prv = create_tbl_lc(light_curves_prv)
             
             tbllsalerts = []
             for name in clean_set:
-                ta = tbl_only_alerts[tbl_only_alerts['name']==name]
+                ta = tbl_only_alerts[tbl_only_alerts['name']==name] # per name
                 ta.add_index('jd')
-                tf = tbl_only_fphists[tbl_only_fphists['name']==name]
+                tf = tbl_only_fphists[tbl_only_fphists['name']==name] # per name
                 # For each candidate, remove alert photometry point if it has FP on the same jd (FP tend to have lower unc)
                 for jd in list(ta['jd']):
                     if jd in list(tf['jd']):
                         ta.remove_row(ta.loc_indices[jd])
-            tbllsalerts.append(ta)
+                tbllsalerts.append(ta)
             tbl_only_alerts = vstack(tbllsalerts)
             
-            # For each FP point, designate as an upper limit if mag dimmer than limmag5sig. Otherwise - detection.
+            # For each FP point, designate as an upper limit if SNR < 3. Otherwise - detection.
             for row in tbl_only_fphists:
-                if row['magpsf'] > row['limmag5sig']:
+                if row['snr'] < 3.0:
                     row['origin'] = 'magul' # mag upper limit
+            # do the same for prv data/ remove jd if there's already FP 
+            
             
             tbl_alert_fp = vstack([tbl_only_alerts,tbl_only_fphists])
             tbl_alert_fp.sort('jd')
@@ -574,7 +577,7 @@ and {date_end.iso}")
         elif light_curves_fp is not None:
             tbl_alert_fp = create_tbl_lc_fphists(light_curves_fp) #already sorted by jd
             for row in tbl_alert_fp:
-                if row['magpsf'] > row['limmag5sig']:
+                if row['snr'] < 3.:
                     row['origin'] = 'magul'
         else:
             tbl_alert_fp = None  
@@ -616,7 +619,12 @@ and {date_end.iso}")
         from functions_db import populate_table_lightcurve
         populate_table_lightcurve(tbl_lc, con, cur)
         print("POPULATED alert lightcurves")
-
+        
+        # ---------- ADD HERE: populate DB with alert forced photometry ------------- #
+        #from functions_db import populate_table_lightcurve_alertfp
+        #populate_table_lightcurve_alertfp(tbl=tbl_alert_fp, con=con, cur=cur)
+        #print("POPULATED alert forced photometry lightcurves")
+        
         # Extinction information
         from functions_db import populate_extinction
         populate_extinction(con, cur)
@@ -628,10 +636,10 @@ and {date_end.iso}")
         con.close()
         cur.close()
 
-#############################################################################################
+# -----------------------------------------------------------------------------------------
     # Select based on the variability criteria
     from select_variability_db import select_variability
-    # Alerts
+    # Alerts and prv_candidates data as input
     if tbl_lc is not None:
         print("--------------------------------------------")
         print("Selecting based on alerts + prv photometry.....")
@@ -650,25 +658,95 @@ and {date_end.iso}")
                        path_forced='./')
     else:
         selected, rejected, cantsay = None, None, None
-##############################################################################################
+    # with open('results_alert.txt', 'w') as f:
+        # f.write(f"Candidates for <{date_start}> to <{date_end}> \n------------------ \nALERTS + PRV \n")
+        # f.write("------------------ \n")
+        # f.write("SELECTED: \n")
+        # if selected is not None:
+            # for name in selected:
+                # f.write(f"{name} \n")
+        # f.write("------------------ \n")
+        # f.write("CAN'T SAY: \n")
+        # if cantsay is not None:
+            # for name in cantsay:
+                # f.write(f"{name} \n")
+        # f.write("------------------ \n")
+        # f.write("REJECTED: \n")
+        # if rejected is not None:
+            # for name in rejected:
+                # f.write(f"{name} \n")
+# -----------------------------------------------------------------------------------------
 ### testing - do alerts+prv, alerts+fphists, then exit ###
     if use_fphists:
         # Repeat the selection based on forced photometry from alerts
         print("----------------------------------------------")
         print("Selecting based on alert forced photometry...")
-        selected, rejected, cantsay = select_variability(tbl_alert_fp,
-                       hard_reject=[], update_database=False,
-                       read_database=False,
-                       use_forcephotztf=False, stacked=False,
-                       baseline=0.125, var_baseline={'g': 6, 'r': 8, 'i': 10},
-                       max_duration_tot=15., max_days_g=7., snr=4,
-                       index_rise=-1.0, index_decay=0.3,
-                       path_secrets_db=args.path_secrets_db,
-                       save_plot=True, path_plot='./plots/',
-                       show_plot=False, use_metadata=False,
-                       path_secrets_meta='./secrets.csv',
-                       save_csv=True, path_csv='./lc_csv',
-                       path_forced='./') # important that read_database use_forcephotztf are False
+        if tbl_alert_fp is not None:
+            selected, rejected, cantsay = select_variability(tbl_alert_fp,
+                           hard_reject=[], update_database=False,
+                           read_database=False,
+                           use_forcephotztf=False, use_alertfp=True, stacked=False,
+                           baseline=0.125, var_baseline={'g': 6, 'r': 8, 'i': 10},
+                           max_duration_tot=15., max_days_g=7., snr=4,
+                           index_rise=-1.0, index_decay=0.3,
+                           path_secrets_db=args.path_secrets_db,
+                           save_plot=True, path_plot='./plots/',
+                           show_plot=False, use_metadata=False,
+                           path_secrets_meta='./secrets.csv',
+                           save_csv=True, path_csv='./lc_csv',
+                           path_forced='./') # important that read_database use_forcephotztf are False
+        else:
+            selected, rejected, cantsay = None, None, None
+        # with open('results_alertfp.txt', 'w') as f:
+            # f.write(f"Candidates for <{date_start}> to <{date_end}> \n------------------ \nALERTS + ALERT FP \n")
+            # f.write("------------------ \n")
+            # f.write("SELECTED: \n")
+            # if selected is not None:
+                # for name in selected:
+                    # f.write(f"{name} \n")
+            # f.write("------------------ \n")
+            # f.write("CAN'T SAY: \n")
+            # if cantsay is not None:
+                # for name in cantsay:
+                    # f.write(f"{name} \n")
+            # f.write("------------------ \n")
+            # f.write("REJECTED: \n")
+            # if rejected is not None:
+                # for name in rejected:
+                    # f.write(f"{name} \n")
+            # f.write("------------------ \n")
+            
+        # TEST: STACKING
+        # print("Selecting based on stacked alert forced photometry...")
+        # from stacking.lc_stack_int import stack_lc_new
+        # stacked = Table([[],[],[],[],[],[],[],[],[],[],[]], 
+                        # names = ('name', 'jd', 'flux', 'flux_unc', 'zp', 'ezp',
+                                # 'mag', 'mag_unc', 'limmag', 'filter', 'programid'),
+                        # dtype = ('S','double', 'f', 'f', 'f', 'f',
+                                # 'f', 'f', 'f', 'S', 'int'))
+        # for name in clean_set:
+            # t = tbl_alert_fp[tbl_alert_fp['name']==name]
+            # if len(t[t['origin']=='alertfp']) > 0:
+                # stacked_n = stack_lc_new(t,days_stack=1.)
+                # stacked_n.add_column([name for i in range(0,len(stacked_n))],name='name',index=0)
+                # stacked = vstack([stacked,stacked_n])
+                # print(stacked.colnames)
+            
+        # if len(stacked)>0:
+            # selected, rejected, cantsay = select_variability(stacked,
+                           # hard_reject=[], update_database=False,
+                           # read_database=False,
+                           # use_forcephotztf=False, use_alertfp=True, stacked=True,
+                           # baseline=0.125, var_baseline={'g': 6, 'r': 8, 'i': 10},
+                           # max_duration_tot=15., max_days_g=7., snr=4,
+                           # index_rise=-1.0, index_decay=0.3,
+                           # path_secrets_db=args.path_secrets_db,
+                           # save_plot=True, path_plot='./plots/',
+                           # show_plot=False, use_metadata=False,
+                           # path_secrets_meta='./secrets.csv',
+                           # save_csv=True, path_csv='./lc_csv',
+                           # path_forced='./')
+            
         quit()
 ################################################################################################
     # Get candidates that have lightcurves and/or ForcePhotZTF data in the kn database
@@ -711,7 +789,7 @@ and {date_end.iso}")
 			            path_secrets_db=args.path_secrets_db)
         ####
         # Select from the db which candidates need forced photometry
-        # this part relies on the database having been updated by someone NOT sarah :(((((((
+        # this part relies on the database having been updated by someone 
         cur.execute("select name from candidate where \
 (duration_tot < 21 or duration_tot is null) and \
 (hard_reject is NULL or hard_reject = 0)")
@@ -930,5 +1008,7 @@ crossmatching, you need to have --doWriteDb active")
                                              tstart=tstart, tend=tend,
                                              exposure_time = 300,
                                              doSubmission=False)
-
+    if read_database:
+        con.close()
+        cur.close()
     print("Done.")
