@@ -428,7 +428,7 @@ def select_variability(tbl, hard_reject=[], update_database=False,
 
     if update_database is True or read_database is True:
         # Connect to psql db
-        con, cur = connect_database(update_database=update_database, path_secrets_db=path_secrets_db)
+        con, cur = connect_database(update_database=update_database, path_secrets_db=path_secrets_db, dbname='db_kn_2025_admin')
         if con.closed==0:
             print("Connected to PSQL database")
         # Updated to connecting via sqlalchemy so it doesn't throw a Warning when pandas read_sql_query is used

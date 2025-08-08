@@ -608,7 +608,7 @@ and {date_end.iso}")
         print("Updating database...")
         # Connect to the database
         con, cur = connect_database(update_database=args.doWriteDb,
-                                    path_secrets_db=args.path_secrets_db)
+                                    path_secrets_db=args.path_secrets_db, dbname='db_kn_2025_admin')
 
         # Add the candidates to the db
         from functions_db import populate_table_candidate
@@ -786,7 +786,7 @@ and {date_end.iso}")
         print("Reading database for lightcurves and ForcePhotZTF forced photometry...")
         # Connect to the database
         con, cur = connect_database(update_database=args.doWriteDb,
-			            path_secrets_db=args.path_secrets_db)
+			            path_secrets_db=args.path_secrets_db, dbname = 'db_kn_2025_admin')
         ####
         # Select from the db which candidates need forced photometry
         # this part relies on the database having been updated by someone 
@@ -928,7 +928,7 @@ where hard_reject = 1 and name in ('{names_str}')")
         if args.doWriteDb:
             # Connect to the database
             con, cur = connect_database(update_database=args.doWriteDb,
-                                        path_secrets_db=args.path_secrets_db)
+                                        path_secrets_db=args.path_secrets_db, dbname='db_kn_2025_admin')
 
             # Import the relevant function
             from functions_db import populate_table_clu
