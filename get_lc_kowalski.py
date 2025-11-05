@@ -124,7 +124,7 @@ def get_lightcurve_alerts(username, password, list_names):
     return r.get("default").get("data")
 
 
-def create_tbl_lc(light_curves, outfile=None):
+def create_tbl_lc(light_curves, outfile=None, origin='alert'):
     """Create a table with the light curves
     and write a CSV output file"""
     """ To be used for alert and prv photometry"""
@@ -167,7 +167,7 @@ def create_tbl_lc(light_curves, outfile=None):
                magzpsci, magzpsciunc,
                l["candidate"]["programid"], l["candidate"]["field"],  
                l["candidate"]["rcid"], np.array(l["candidate"]["pid"]).astype('uint64'), np.nan,
-               np.nan, np.nan, np.nan, np.nan, np.nan, 'alert']
+               np.nan, np.nan, np.nan, np.nan, np.nan, origin]
         #print(row[13].dtype)
         tbl.add_row(row)
     # Remove exact duplicates
