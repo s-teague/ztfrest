@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Runs ztfrest without slack processing.
+
 # Run the pipeline (first half)
 source /scr2/ztfrest/anaconda3/bin/conda activate ztfrest2
 export PATH=/scr2/ztfrest/anaconda3/envs/ztfrest2/bin/:$PATH
