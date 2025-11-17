@@ -1,5 +1,7 @@
 '''
-note: all create_<tablename> functions are irrelevant now, see new_db_2025.py
+Functions to connect to, manage, and write to kn database.
+note: all create_<tablename> functions are for old database, see new_db_2025.py
+for current create_<tablename>, column names, data types, etc.
 '''
 
 import glob
@@ -18,11 +20,10 @@ import pandas as pd
 import psycopg2
 from sqlalchemy import create_engine
 
-# important! -- i've changed the default connection to be to the 2025 database
+# the default connection is the 2025 database
 def connect_database(update_database=False, path_secrets_db='db_access.csv',
                      dbname='db_kn_2025_admin'):
-#def connect_database(update_database=False, path_secrets_db='db_access.csv',
-#                     dbname=None):
+
     """
     Establish a connection to the psql database
 
@@ -888,7 +889,7 @@ def populate_table_lightcurve_alertfp(tbl, con, cur, programids=[1,2,3]):
 where name in ({str_names})")
     r = cur.fetchall()
     names_skip = list((l[0], l[1]) for l in r) # list of (name,jd) already present in db
-    print(names_skip)
+    #print(names_skip)
     # Marks for the ingestion
     cur.execute("SELECT * FROM lightcurve_alertfp LIMIT 0;")
     num_cols = len([desc[0] for desc in cur.description])

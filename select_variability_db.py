@@ -30,7 +30,6 @@ from functions_db import connect_database, connect_database_pd
 Vizier.ROW_LIMIT = 999999999  # Remove the limit of 50 rows
 
 
-########### this will be updated w/ nat's code ############
 def stack_lc(tbl, days_stack=1., snt_det=3, snt_ul=5):
     """Given a dataframe with a maxlike light curve,
     stack the flux """
@@ -119,140 +118,6 @@ def stack_lc(tbl, days_stack=1., snt_det=3, snt_ul=5):
                            mag_unc_stack, maglim_stack, f, new_programid])
 
     return t_out
-# --------- updated stacking function --------------
-# def stack_lc(tbl_fp, days_stack, snt_det=3, snt_ul=5): 
-    # """ Given a dataframe with a maxlike light curve, stack the flux.
-        # Input: table containing forced photometry for one candidate
-        # Output: table with combined flux measurements for each time window (bin)
-
-        # snt_det: signal to noise threshold for declaring a measurement a "non-detection"
-        # snt_ul: actual signal to noise ratio for computing a sigma upper limit """
-    
-    # if 'jdobs' in list(tbl_fp.colnames):
-        # key_jd = 'jdobs'
-    # elif 'jd' in list(tbl_fp.colnames):
-        # key_jd = 'jd'
-    # else:
-        # print("What is the column for the JD?")
-        # pdb.set_trace()
-    # tbl = tbl_fp[:]
-    
-    # # format check for alert fp table
-    # if 'magzpsci' in list(tbl.colnames):
-        # tbl.rename_column('magzpsci', 'zp')
-    # if 'magzpsciunc' in list(tbl.colnames):
-        # tbl.rename_column('magzpsciunc', 'ezp')
-    # if 'forcediffimflux' in list(tbl.colnames):
-        # tbl.rename_column('forcediffimflux', 'Flux_maxlike')
-    # if 'forcediffimfluxunc' in list(tbl.colnames):
-        # tbl.rename_column('forcediffimfluxunc', 'Flux_maxlike_unc')
-    # if 'flux_maxlike' in list(tbl.colnames):
-        # tbl.rename_column('flux_maxlike', 'Flux_maxlike')
-    # if 'flux_maxlike_unc' in list(tbl.colnames):
-        # tbl.rename_column('flux_maxlike_unc', 'Flux_maxlike_unc')
-    # if 'origin' in list(tbl.colnames):
-        # tbl = tbl[tbl['origin'] == 'alertfp']
-    
-    # zpavg = np.mean(tbl['zp'])  # fiducial photometric zero point for rescaling fluxes
-
-    # length = len(tbl) - 1 # number of rows of data (zero indexed)
-
-    # t_out = Table([[],[],[],[],[],[],[],[],[],[],[]], 
-                  # names = (key_jd, 'flux', 'flux_unc', 'zp', 'ezp',
-                           # 'mag', 'mag_unc', 'limmag', 'filter', 'programid', 'origin'),
-                  # dtype = ('double', 'f', 'f', 'f', 'f',
-                           # 'f', 'f', 'f', 'S', 'int','S'))
-    # # make bins for stacking within inputted time windows
-    # jd = np.array(tbl[key_jd])
-    # jd.sort()
-    # fil = tbl['filter']  # filter by index
-    # bins = np.arange(jd[0] + days_stack, jd[length] + days_stack, days_stack)  # creates a bin every days_stacked between the start and end date with mesh size of days_stack
-    # bin_len = len(bins)
-
-    # # place the fluxes on the same photometric zeropoint
-    # rs_flux = np.zeros(len(tbl))  # variable for rescaled fluxes
-    # rs_unc = np.zeros(len(tbl))  # variable for rescaled flux uncertainties
-
-    # for index in range (0, len(tbl)):
-        # if (tbl['Flux_maxlike'][index]) != 'null' and not np.isnan((tbl['Flux_maxlike'][index])) and (tbl['Flux_maxlike'][index] < 50.):
-            # flux_i = np.copy(tbl['Flux_maxlike'][index]).astype(np.float64)  # old forcediffimflux value
-            # unc_i = np.copy(tbl['Flux_maxlike_unc'][index]).astype(np.float64)  # old forcediffimfluxunc value
-            # zp_i = np.copy(tbl['zp'][index]).astype(np.float64)
-            # rs_flux[index] = flux_i*10**(0.4 * (zpavg-zp_i))  # rescale the flux
-            # rs_unc[index] = unc_i*10**(0.4 * (zpavg-zp_i))  # rescale the corresponding uncertainty
-        # else:
-            # rs_flux[index] = np.nan
-            # rs_unc[index] = np.nan
-
-    # # combine flux measurements by filter
-    # filters = list(dict.fromkeys(fil))  # fetches each unique filter
-    
-    # bin_flux = np.zeros((bin_len, 3))
-    # bin_unc = np.zeros((bin_len, 2))
-    
-    # for i in range(0, len(filters)):
-        # f_idx = np.where(fil==filters[i])[0]  # get all indices for a particular filter
-        # t_f = tbl[tbl['filter'] == filters[i]]
-        # for j in range(0, bin_len):
-            # b = bins[j]
-            # programids = t_f[(t_f[key_jd] > b) & (t_f[key_jd] < b+1)]['programid']
-            # if len(programids) > 0:
-                # new_programid = int(np.min(programids))
-            # else:
-                # new_programid = 0
-            
-            # new_idx = np.copy(f_idx)
-            # bin_idx = np.where(jd[new_idx] <= bins[j])[0]  # get valid lower limit indices in jd_bin
-            # if bin_idx.size != 0:
-                # new_idx = new_idx[bin_idx]
-                # if j != 0 and new_idx.size != 0:
-                    # bin_idx = np.where(jd[new_idx] > bins[j-1])[0]  # get valid upper limit indices in jd_bin
-                    # new_idx = new_idx[bin_idx]
-                # w = 1/(rs_unc[new_idx])**2
-                # w_sum = np.nansum(w)  # prevents RuntimeWarning with scalar divide/scalar power
-                # if w.size > 0 and w_sum != 0:
-                    # bin_flux[j, 0] = np.nansum(w*rs_flux[new_idx])/w_sum # combined fluxes in bin j
-                    # bin_unc[j, 0] = np.nansum(w)**(-1/2)  # combined unc
-                    # bin_flux[j, 1] = i  # filter
-                    # bin_unc[j, 1] = i  # filter
-                    
-                    # bin_flux[j, 2] = new_programid
-    
-    # # calculate calibrated magnitudes
-    # mag = np.zeros(bin_len)
-    # sigma = np.zeros(bin_len)
-    # #flux_ul = np.zeros(bin_len)
-    # mag_ul = np.zeros(bin_len)
-    
-    # for i in range (0, bin_len):
-        
-        # flux_i = bin_flux[i, 0]
-        # unc_i = bin_unc[i, 0]
-        # filt_i = int(bin_flux[i, 1])  # index in filters
-        # new_programid = bin_flux[i, 2]
-        # if flux_i != 0:
-            # if (flux_i/unc_i) > snt_det:  # confident detection
-                # mag[i] = zpavg - 2.5*np.log10(flux_i)  # compute AB magnitude
-                # sigma[i] = 1.0857*unc_i/flux_i  # compute uncertainty in magnitude
-                # #flux_ul[i] = np.nan
-                # mag_ul[i] = np.nan
-                # origin = 'alertfp'
-            # else:
-                # #flux_ul[i] = zpavg - 2.5*np.log10(snt_ul*unc_i)  # compute flux upper limit
-                # mag_ul[i] = zpavg - 2.5*np.log10(snt_ul*unc_i)
-                # mag[i] = 99.
-                # sigma[i] = 99.
-                # origin = 'magul'
-        # else:
-            # flux_ul[i] = np.nan
-            # mag[i] = np.nan
-            # sigma[i] = np.nan
-            # origin = 'null'
-
-        # # fill in output table
-        # t_out.add_row([bins[i], flux_i, unc_i, zpavg, np.nan, 
-                      # mag[i], sigma[i], mag_ul[i], filters[filt_i], new_programid, origin])
-    # return t_out
 
 
 def query_metadata(ra, dec, username, password, zquery,
@@ -302,7 +167,10 @@ def do_fit(errfunc, pinit, time, mag, magerr):
 
     return pfinal, covar, index, amp, indexErr, ampErr
 
-#############################################################################################################
+### ----------------------------------------------------------------------
+### |                     primary filtering function                     |
+### ----------------------------------------------------------------------
+
 def select_variability(tbl, hard_reject=[], update_database=False,
                        read_database=True,
                        use_forcephotztf=False, use_alertfp=False, stacked=False,
@@ -435,17 +303,10 @@ def select_variability(tbl, hard_reject=[], update_database=False,
         list of candidates without enough information to tell
         if they meet the input selection criteria
     """
-    #testname = 'ZTF25aavmqcp' # candidate for which I want to see why it wasn't selected
-    #testname = 'ZTF25aavvzbx'
-    #testname = 'ZTF25aaxjntk' # Ia for igor
-    #testname = 'ZTF25aaxxchz' #ztfrest 06/30 - intersting
-    #testname = 'ZTF25aaztrqi' # selected 7/9
-    #testname = 'ZTF25aazsgsc' #selected 7/9
-    #testname = 'ZTF25aazohsf' #selected 7/8
-    #testname = 'ZTF25aavlpqw'
-    #testname = 'ZTF25aaztfnv'
-    testnames = ['ZTF22aaajecp']
-    print(f"Candidate(s) for testing: {testnames}")
+    
+    testnames = [] # testing utility to determine why/why not certain candidates were selected
+    if len(testnames) > 0:
+        print(f"Candidate(s) for testing: {testnames}")
     
     # Useful definitions, specific for ZTF
     try:
@@ -460,17 +321,18 @@ def select_variability(tbl, hard_reject=[], update_database=False,
         # Connect to psql db
         con, cur = connect_database(update_database=update_database, 
                                     path_secrets_db=path_secrets_db) 
-                                    #dbname='db_kn_2025_admin')
+                                    
         cur.execute("select current_database()")
         current_dbname = cur.fetchall()[0][0]
         if update_database is True and current_dbname != 'database_kn_2025':
-            print("panic !!!!!!!!!")
+            print(f"Accidentally connected to {current_dbname} - terminating")
             con.close()
             cur.close()
         if con.closed==0:
             print(f"Connected to PSQL database: {current_dbname}")
-        # Updated to connecting via sqlalchemy so it doesn't throw a Warning when pandas read_sql_query is used
-        #ignore for now and fix if it stops working
+        
+        # Could update to connecting via sqlalchemy so it doesn't throw a Warning when pandas read_sql_query is used
+        # but ignoring for now
         #from sqlalchemy import text
         #con = connect_database_pd(update_database=update_database, path_secrets_db=path_secrets_db)
         #cur = con.connect()
@@ -489,7 +351,7 @@ def select_variability(tbl, hard_reject=[], update_database=False,
     
     # sanity check
     if use_forcephotztf is True and use_alertfp is True:
-        print("Warning - You are using both alert FP and ForcePhotZTF.")
+        print("Warning - You are using both alert FP and ForcePhotZTF. This will not work.")
     
     # if not just alerts - Get forced phot for all the candidates from psql db
     if read_database is True and (use_forcephotztf is True or use_alertfp is True):
@@ -527,7 +389,7 @@ for any of the given candidates.")
         
     for name in testnames:
         if name not in candidates:
-            print(f"{name} wasn't even in there to begin with")
+            print(f"{name} wasn't even in candidate list to begin with")
     for name in candidates:
         if name in testnames:
             print(name)
@@ -625,7 +487,7 @@ for any of the given candidates.")
             # ------ if using alert forced photometry -----
             if use_alertfp:
                 t_ul = t[t['origin'] == 'magul'] # separate out upper limits (snr < 3)
-                #t_ul = t[t['snr'] < 3.] # no doesn't work bc alert datapoints don't have snr info bc they are all snr > 5
+                
                 #t_ul.rename_column('limmag5sig', 'limmag')
                 t = t[t['origin'] != 'magul'] # alert and alert fp detections
             elif stacked is True: # double-checking, although should be handled earlier
@@ -638,7 +500,7 @@ for any of the given candidates.")
             # - ignore later updates to light curve, as if the candidate just picked up by the pipeline
             #if len(t) != 0 and use_alertfp:
             #    t.add_index('jd') # necessary to remove rows bc astropy table sucks
-            #    cutoffdate = min(t['jd']) + 100
+            #    cutoffdate = min(t['jd']) + 3
             #    if name in testnames:
             #        print(f"Cutoff date: {cutoffdate}")
             #    for jd in list(t['jd']):
@@ -654,7 +516,7 @@ for any of the given candidates.")
         if len(t) == 0 and empty is False:
             names_reject.append(name)
             if name in testnames:
-                print("It was rejected bc it only has UL's")
+                print("It was rejected bc it only has upper limits")
             continue
 
         # Determine the light curve starting time
@@ -666,9 +528,7 @@ for any of the given candidates.")
             if update_database is True:
                 
                 # FIXME do we want to report only the max duration_tot between alerts, forcephot, and stack?
-                # yes -- but test
-                # FIXME should make sure upper limits are not included in this 
-                # checked- won't be with alertfp (are all in t_ul). OK for FPZTF too (separated out by t_ul = t['mag'] > 50
+                # yes -- fixed
                 
                 cur.execute(f"SELECT duration_tot FROM candidate WHERE name = '{name}';")
                 r = cur.fetchall()
@@ -728,7 +588,7 @@ for any of the given candidates.")
             #    tf_ul['jd'] = tf_ul['jd'] - t0 # might be < 0
             
             
-            #brightest, faintest detections
+            # brightest, faintest detections
             bright = np.min(tf["magpsf"])
             try:
                 brighterr = tf["sigmapsf"][tf["magpsf"] == bright][0]
@@ -786,7 +646,7 @@ for any of the given candidates.")
                     if abs(index_nondet) >= 1.:
                         passes_nondet = True
                         
-                        if update_database is True:
+                        if update_database is True and (last-first) <= 3.:
                             column = f"index_nondet_rise_{f}"
                             cur.execute(f"UPDATE candidate SET \
                                         {column} = {index_nondet} \
@@ -795,11 +655,7 @@ for any of the given candidates.")
                         print(f"Inferred rise: {index_nondet} mag/day. Passes by non-detections: {passes_nondet}")
                 else:
                     index_nondet = 0.
-                # FIXME: write index_nondet to candidate tbl in db. If cnadidate older than 3(?) days in filter,
-                # (a) don't write.
-                #if update_database:
-                    # update the dtabase
-                # check rise and fade rates later; also select if there is no second detection
+
             else:
                 if name in testnames:
                     print("no upper limits")
@@ -860,17 +716,13 @@ for any of the given candidates.")
             onlyrise = False
             onlyfade = False
             
-            # Determine whether lightcurve is rising, fading, or both:
+            # Determine whether lightcurve is rising, fading, or both
+            # 1. Fade only
             if bright_jd < first + baseline:
                 onlyfade = True
                 if name in testnames:
                     print("Fade only")
                 riseorfade = 'fade'
-                #if passes_nondet:
-                    #if name in testnames:
-                    #    print(f"It was selected by non-detections. Inferred rise: {index_nondet}")
-                    #print(f"{name} was selected by non-detections. Inferred rise: {index_nondet}")
-                    #names_select.append(name)
                 
                 # ------- Some info may be stored that we want to remove: -------
                 
@@ -894,6 +746,7 @@ for any of the given candidates.")
                     cur.execute(f"UPDATE candidate SET \
                                 {column} = NULL \
                                 where name = '{name}'")
+            # 2. Rise only
             elif bright_jd > last - baseline:
                 onlyrise = True
                 if name in testnames:
@@ -964,15 +817,13 @@ for any of the given candidates.")
                     if name in testnames:
                         print("Rejected bc rise less than rise index (in abs value)")
                 # Selection based on the index!
-                # elif ((index < 0 and index < index_rise) and
-                    # (last-first) > var_baseline[f]) or ((index > 0 and index > index_rise) and
-                    # (last-first) > var_baseline[f]): 
                 elif ((index < 0 and index < index_rise) and
                     (last-first) < var_baseline[f]) or ((index > 0 and index > index_decay) and
                     (last-first) < var_baseline[f]):
                     if name in testnames:
                         print(f"Selected because rising/decaying fast enough in {f}")
                     plotted = True
+            # 3. Both rise and fade
             else: # both rise and fade evident in lightcurve
                 indexrise = np.where(time <= bright_jd) # jds before peak - slope fit
                 indexfade = np.where(time >= bright_jd) # jds after peak - slope fit
@@ -1050,9 +901,6 @@ for any of the given candidates.")
                         if name in testnames:
                             print("Rejected bc rise too slow")
                     # Selection based on the index!
-                    # elif ((index < 0 and index < index_rise) and
-                        # (last-first) > var_baseline[f]) or ((index > 0 and index > index_rise) and
-                        # (last-first) > var_baseline[f]):
                     elif ((index < 0 and index < index_rise) and
                         (last-first) < var_baseline[f]) or ((index > 0 and index > index_decay) and
                         (last-first) < var_baseline[f]):
@@ -1172,7 +1020,7 @@ for any of the given candidates.")
     #print(f"Reject {set(names_reject)}")
     cantsay = list(n for n in candidates if
                    not (n in names_select) and not (n in names_reject))
-    print(f"Cannot say {set(cantsay)}")
+    #print(f"Cannot say {set(cantsay)}")
     print(f"{len(set(names_reject))}/{len(candidates)} objects rejected")
     print(f"{len(set(names_select))}/{len(candidates)} objects selected")
     print(f"{len(set(cantsay))}/{len(candidates)} objects cannot say")

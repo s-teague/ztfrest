@@ -1,6 +1,11 @@
 '''
 Query Kowalski searching for transients
 given a set of constraints.
+
+Selection based on alert+prv data, 
+                   alert forced photometry, 
+                   custom forced photometry (FPZTF pipeline),
+                   and binned forced photometry.
 '''
 
 import json
@@ -141,16 +146,13 @@ def check_lightcurve_alerts(username, password, list_names, min_days, max_days):
              }
 
     r = k.query(query=q) # response
-    ##if r['data'] == []:
-    ##    print("No candidates to be checked?")
-    ##    return None
     if r.get("default").get("data") == []:
         print("No candidates to be checked.")
         return None
 
     old = []
     objectid_list = []
-    ##for info in r['data']:
+    
     for info in r.get("default").get("data"):
         if info['objectId'] in old:
             continue
@@ -166,7 +168,7 @@ def check_lightcurve_alerts(username, password, list_names, min_days, max_days):
             clean_set.remove(n)
         except:
             pass
-    #print(f"Removed - duration > 14 d: {len(set(old))}")
+    
     return clean_set
 
 
@@ -183,19 +185,7 @@ def query_kowalski(kow, list_fields, min_days, max_days,
     #Initialize a set for the results
     set_objectId_all = set([])
     
-    returned_by_query = []
-    # r_sso = []
-    # r_neg_sub = []
-    # r_old = []
-    # r_sg = []
-    # r_max = []
-    # r_min = []
-    # r_outoftime = []
-    
-    count_neg = 0
-    count_stellar = 0
-    count_old = 0
-    count_outoftime = 0
+    #returned_by_query = []
     
     for field in list_fields:
         set_objectId_field = set([])
@@ -263,7 +253,6 @@ def query_kowalski(kow, list_fields, min_days, max_days,
         no_candidates = False
         while i <= 5:
             try:
-                #if r['data'] == []:
                 if r.get("default").get("data") == []:
                     no_candidates = True
                 break
@@ -282,32 +271,24 @@ def query_kowalski(kow, list_fields, min_days, max_days,
         
         
         returned_by_query += [d['objectId'] for d in r['default']['data'] if d['objectId'] not in returned_by_query]
-        ##for info in r['data']:
+        
         for info in r.get("default").get("data"):
             if info['objectId'] in old:
                 continue
             if info['objectId'] in stellar_list:
                 continue
             if np.abs(info['candidate']['ssdistnr']) < 10:
-                # if info['objectId'] not in r_sso: #and info['objectId'] not in r_sg and info['objectId'] not in r_min and info['objectId'] not in r_max:
-                    # r_sso.append(info['objectId'])
                 continue
             if info['candidate']['isdiffpos'] in ['f',0]:
-                with_neg_sub.append(info['objectId'])
-                #r_neg_sub.append(info['objectId'])
+                with_neg_sub.append(info['objectId'])    
             if (info['candidate']['jdendhist'] - info['candidate']['jdstarthist']) < min_days:
-                # if info['objectId'] not in r_min: #and info['objectId'] not in r_sg and info['objectId'] not in r_sso and info['objectId'] not in r_max:
-                    # r_min.append(info['objectId'])
                 continue
             if (info['candidate']['jdendhist'] - info['candidate']['jdstarthist']) > max_days:
-                # if info['objectId'] not in r_max: #and info['objectId'] not in r_sg and info['objectId'] not in r_min and info['objectId'] not in r_sso:
-                    # r_max.append(info['objectId'])
                 old.append(info['objectId'])
             try:
                 if (np.abs(info['candidate']['distpsnr1']) < 1.5 and info['candidate']['sgscore1'] > 0.5):
                     stellar_list.append(info['objectId'])
-                    # if info['objectId'] not in r_sg: #and info['objectId'] not in r_sso and info['objectId'] not in r_min and info['objectId'] not in r_max:
-                        # r_sg.append(info['objectId'])
+            
             except:
                 pass
             try:
@@ -315,8 +296,7 @@ def query_kowalski(kow, list_fields, min_days, max_days,
                            info['candidate']['srmag1'] < 15. and
                            info['candidate']['srmag1'] > 0. and
                            info['candidate']['sgscore1'] >= 0.5):
-                    # if info['objectId'] not in r_sg: #and info['objectId'] not in r_sso and info['objectId'] not in r_min and info['objectId'] not in r_max:
-                        # r_sg.append(info['objectId'])
+                    
                     continue
             except:
                 pass
@@ -325,8 +305,6 @@ def query_kowalski(kow, list_fields, min_days, max_days,
                            info['candidate']['srmag2'] < 15. and
                            info['candidate']['srmag2'] > 0. and
                            info['candidate']['sgscore2'] >= 0.5):
-                    # if info['objectId'] not in r_sg: #and info['objectId'] not in r_sso and info['objectId'] not in r_min and info['objectId'] not in r_max:
-                        # r_sg.append(info['objectId'])
                     continue
             except:
                 pass
@@ -335,8 +313,6 @@ def query_kowalski(kow, list_fields, min_days, max_days,
                            info['candidate']['srmag3'] < 15. and
                            info['candidate']['srmag3'] > 0. and
                            info['candidate']['sgscore3'] >= 0.5):
-                    # if info['objectId'] not in r_sg: #and info['objectId'] not in r_sso and info['objectId'] not in r_min and info['objectId'] not in r_max:
-                        # r_sg.append(info['objectId'])
                     continue
             except:
                 pass
@@ -349,7 +325,6 @@ def query_kowalski(kow, list_fields, min_days, max_days,
         for n in set(with_neg_sub):
             try:
                 set_objectId.remove(n)
-                #count_neg += 1
             except:
                 pass
 
@@ -373,7 +348,7 @@ def query_kowalski(kow, list_fields, min_days, max_days,
                 set_objectId.remove(n)
             except:
                 pass
-        #print(set_objectId)
+        
         set_objectId_all = set_objectId_all | set_objectId
         #print(f"Cumulative: {len(set_objectId_all)}")
 
@@ -381,21 +356,7 @@ def query_kowalski(kow, list_fields, min_days, max_days,
             print("Field", field, len(set_objectId_all))
 
     print(f"Returned by initial query: {len(set(returned_by_query))}")
-    # print(f"Removed - negative subtraction: {count_neg}")
-    # print(f"Removed - SSOs: {len(set(r_sso))}")
-    # print(f"Removed - stellar+galactic: {len(set(r_sg)) - len(set(r_sso).intersection(set(r_sg)))}")
-    # print(f"Remove - out of time window: {count_outoftime}")
-    # duplicates = len(set(r_min).intersection(set(r_sg))) + len(set(r_max).intersection(set(r_sg))) + len(set(r_min).intersection(set(r_sso))) + len(set(r_max).intersection(set(r_sso)))
-    # print(f"Duplicates b/w min,max and sg,score: {duplicates}")
-    # print(f"Removed - old or new: {len(set(r_max)) + len(set(r_min)) - duplicates}")
-    # print("Intersections:")
-    # print(f"SSO-SG: {len(set(r_sso).intersection(set(r_sg)))}")
-    # print(f"SSO-max: {len(set(r_sso).intersection(set(r_max)))}")
-    # print(f"SSO-min: {len(set(r_sso).intersection(set(r_min)))}")
-    # print(f"SG-max: {len(set(r_sg).intersection(set(r_max)))}")
-    # print(f"SG-min: {len(set(r_sg).intersection(set(r_min)))}")
-    # print(f"max-min: {len(set(r_max).intersection(set(r_min)))}") # it BETTER BE EMPTY
-    # print(f"Returned by query_kowalski: {len(set_objectId_all)}")
+    
     return set_objectId_all
 
 ###################################################################################################
@@ -466,9 +427,10 @@ if __name__ == "__main__":
                         required=False,
                         help="Path to the CSV file including the credentials \
                         to access the psql database", default='db_access.csv')
-    ####### new #######
+    ### new
     parser.add_argument("--dontReadDb", action="store_true", help="Do not read information \
-                        from the psql database", default = False)
+                        from the psql database during selection. Retrieves photometry from kowalski instead", 
+                        default = False)
     parser.add_argument("--doAuxFp", action="store_true", 
                         help='Use forced photometry from the \
                         ZTF alert packets', default=False)
@@ -495,7 +457,7 @@ will be updated with the results of your queries.")
     kow = Kowalski(username=username, password=password)
     connection_ok = kow.ping()
     if not connection_ok:
-       raise KowalskiError('not connected to Kowalski')
+       raise KowalskiError('Error: Not connected to Kowalski')
     print(f'Connection to Kowalski OK: {connection_ok}')
 
 
@@ -531,9 +493,9 @@ will be updated with the results of your queries.")
                           int((date_end.jd - date_start.jd)/thresh_days)+1)
         jd_gap = list_jd[1] - list_jd[0] + 1
 
-    print("Querying kowalski...")
+    print("Querying Kowalski...")
     for jd in list_jd:    
-        # #Query kowalski
+        # #Query kowalski, return a list of candidate names
         sources_kowalski = query_kowalski(kow, list_fields,
                                           args.min_days, args.max_days,
                                           args.ndethist_min,
@@ -555,9 +517,9 @@ will be updated with the results of your queries.")
 between {date_start} and {date_end} \
 with the specified criteria.")
     else:
-        print("Final set:")
-        print(clean_set)
-        print(f"Total: {len(clean_set)} candidates between {date_start.iso} \
+        #print("Final set:")
+        #print(clean_set)
+        print(f"Total: {len(clean_set)} candidates found between {date_start.iso} \
 and {date_end.iso}")
 
         #Print results to an output text file
@@ -567,7 +529,8 @@ and {date_end.iso}")
             for n in clean_set:
                 f.write(f"{n} \n")
         print("----------------------------------------")
-#### Get the light curves ##################################
+
+#### Get the light curves from Kowalski #################
     print("Getting light curves from the alerts...")
     from get_lc_kowalski import get_lightcurve_alerts, \
                                 get_lightcurve_alerts_aux, create_tbl_lc, \
@@ -575,17 +538,18 @@ and {date_end.iso}")
     
     use_fphists = args.doAuxFp # use forced photometry from alerts?
     
-    # If there are candidates at all..
+    # If there are candidates at all:
     if clean_set is not None:
+        # Get alert data from ZTF_alerts catalog
         light_curves_alerts = get_lightcurve_alerts(username,
                                                     password,
-                                                    clean_set) # alert data (SNR >= 5)
+                                                    clean_set) # (SNR >= 5)
 
-        # Add prv_candidates (previous) photometry
+        # Add prv_candidates (previous) photometry from ZTF_alerts_aux catalog
         print("Getting light curves from the alerts prv...")
         light_curves_prv = get_lightcurve_alerts_aux(username,
                                                      password,
-                                                     clean_set) # previous data (3<=SNR<5)
+                                                     clean_set) # (3<=SNR<5)
                                                      
         if use_fphists is True:
             # Add fp_hists (forced photometry from the alerts)
@@ -607,20 +571,19 @@ and {date_end.iso}")
                 ta = tbl_only_alerts[tbl_only_alerts['name']==name] # per name
                 ta.add_index('jd')
                 tf = tbl_only_fphists[tbl_only_fphists['name']==name] # per name
-                # For each candidate, remove alert photometry point if it has FP on the same jd (FP tend to have lower unc)
+                # For each candidate, remove alert datapoint if it has alert FP on the same JD
+                # (FP tend to have lower unc)
                 for jd in list(ta['jd']):
                     if jd in list(tf['jd']):
                         ta.remove_row(ta.loc_indices[jd])
                 tbllsalerts.append(ta)
             tbl_only_alerts = vstack(tbllsalerts)
             
-            # For each FP point, designate as an upper limit if SNR < 3. Otherwise - detection.
+            # For each alert FP point, designate as an upper limit if SNR < 3. Otherwise - detection.
             for row in tbl_only_fphists:
                 if row['snr'] < 3.0:
                     row['origin'] = 'magul' # mag upper limit
-            # do the same for prv data/ remove jd if there's already FP 
-            
-            
+ 
             tbl_alert_fp = vstack([tbl_only_alerts,tbl_only_fphists])
             tbl_alert_fp.sort('jd')
             
@@ -663,10 +626,11 @@ and {date_end.iso}")
         con, cur = connect_database(update_database=args.doWriteDb,
                                     path_secrets_db=args.path_secrets_db, 
                                     dbname='db_kn_2025_admin')
+        # make sure you are writing to the correct database
         cur.execute("select current_database()")
         current_dbname = cur.fetchall()[0][0]
         if current_dbname != 'database_kn_2025':
-            print("panic!!!!")
+            print("Wrong database!!! terminating connection...")
             con.close()
             cur.close()
         # Add the candidates to the db
@@ -679,7 +643,7 @@ and {date_end.iso}")
         populate_table_lightcurve(tbl_lc, con, cur)
         print("POPULATED alert lightcurves")
         
-        # ---------- ADD HERE: populate DB with alert forced photometry ------------- #
+        # populate DB with alert forced photometry 
         from functions_db import populate_table_lightcurve_alertfp
         populate_table_lightcurve_alertfp(tbl=tbl_alert_fp, con=con, cur=cur)
         print("POPULATED alert forced photometry lightcurves")
@@ -697,6 +661,7 @@ and {date_end.iso}")
         con.close()
         cur.close()
     
+    # Get photometry from database or directly from Kowalski?
     if args.dontReadDb:
         read_database = False
     else:
@@ -710,7 +675,7 @@ and {date_end.iso}")
         print("Selecting based on alerts + prv photometry.....")
         selected, rejected, cantsay = select_variability(tbl_lc,
                        hard_reject=[], update_database=args.doWriteDb,
-                       read_database=True,
+                       read_database=read_database,
                        use_forcephotztf=False, stacked=False,
                        baseline=0.125, var_baseline={'g': 6, 'r': 8, 'i': 10},
                        max_duration_tot=15., max_days_g=7., snr=4,
@@ -746,44 +711,10 @@ and {date_end.iso}")
             selected, rejected, cantsay = None, None, None
         
         print("----------------------------------------------")
-        # TEST: STACKING
-        from select_variability_db import stack_lc
-        stacked = Table([[],[],[],[],[],[],[],[],[],[],[]], 
-                        names = ('name', 'jd', 'flux', 'flux_unc', 'zp', 'ezp',
-                                'mag', 'mag_unc', 'limmag', 'filter', 'programid'),
-                        dtype = ('S','double', 'f', 'f', 'f', 'f',
-                                'f', 'f', 'f', 'S', 'int'))
-        #print("Stacking alert FP...")                        
-        # for name in clean_set:
-            # t_n = tbl_alert_fp[tbl_alert_fp['name']==name]
-            # if len(t_n[t_n['origin']=='alertfp']) >= 2: #require at least 2 datapoints to stack
-                # stacked_n = stack_lc(t_n,days_stack=1.)
-                # stacked_n.add_column([name for i in range(0,len(stacked_n))],name='name',index=0)
-                # stacked = vstack([stacked,stacked_n])
-        
-        # stacked.rename_columns(('mag', 'mag_unc'), ('magpsf', 'sigmapsf'))
-        # stacked = stacked[stacked['origin'] != 'null']
-        
-        # if len(stacked)>0:
-            # print("Selecting based on stacked alert forced photometry...")
-            # selected, rejected, cantsay = select_variability(stacked,
-                           # hard_reject=[], update_database=False,
-                           # read_database=False,
-                           # use_forcephotztf=False, use_alertfp=True, stacked=False,
-                           # baseline=0.125, var_baseline={'g': 6, 'r': 8, 'i': 10},
-                           # max_duration_tot=15., max_days_g=7., snr=4,
-                           # index_rise=-1.0, index_decay=0.3,
-                           # path_secrets_db=args.path_secrets_db,
-                           # save_plot=True, path_plot='./plots/',
-                           # show_plot=False, use_metadata=False,
-                           # path_secrets_meta='./secrets.csv',
-                           # save_csv=True, path_csv='./lc_csv',
-                           # path_forced='./')
-            
-        #quit()
 ################################################################################################
+    # Determine which candidates need to be passed on to the ForcePhotZTF pipeline.
     # Get candidates that have lightcurves and/or ForcePhotZTF data in the kn database
-    # Check if the select_variability_db function returned any candidate
+    
     if selected is not None:
         # which objects do we care about
         allids = selected + cantsay
@@ -815,7 +746,7 @@ and {date_end.iso}")
         print("Reading database for lightcurves and ForcePhotZTF forced photometry...")
         # Connect to the database
         con, cur = connect_database(update_database=args.doWriteDb,
-			            path_secrets_db=args.path_secrets_db) #dbname = 'db_kn_2025_admin')
+			            path_secrets_db=args.path_secrets_db)
         cur.execute("select current_database()")
         current_dbname = cur.fetchall()[0][0]
         if args.doWriteDb is True and current_dbname != 'database_kn_2025':
@@ -833,19 +764,17 @@ and {date_end.iso}")
         ok_dur = list(l[0] for l in r)
         print(f"durations Ok: {len(ok_dur)}")
 
-        #cur.execute(f"select name from lightcurve where jd > {date_end.jd - 14}")
         cur.execute(f"select name from lightcurve where jd between {date_end.jd - 14} and {date_end.jd}")
         r = cur.fetchall()
         # OK for alerts light curve
         ok_lc = list(l[0] for l in r) 
         print("Light curves from alerts from kn database (< 14 days old):", len(ok_lc))
 
-        #cur.execute(f"select name from lightcurve_forced where jd > {date_end.jd - 14}")
         cur.execute(f"select name from lightcurve_forced where jd between {date_end.jd - 14} and {date_end.jd}")
         r = cur.fetchall()
         # OK for forced phot light curve
         ok_lc_forced = list(l[0] for l in r)
-        print("Forced photometry light curves from kn database (< 14 days old):", len(ok_lc_forced))
+        #print("Forced photometry light curves from kn database (< 14 days old):", len(ok_lc_forced))
 
         # Check which new candidates were already hard rejected
         names_str = "','".join(list(allids))
@@ -854,7 +783,7 @@ where hard_reject = 1 and name in ('{names_str}')")
         r = cur.fetchall()
         # Bad ones, already rejected
         ko = list(l[0] for l in r)
-        print("Already rejected in kn database:", len(ko))
+        #print("Already rejected in kn database:", len(ko))
 
         names_ok = list(n for n in ok_dur if
                         ((n in ok_lc or n in ok_lc_forced) and not (n in ko)))
@@ -875,13 +804,13 @@ where hard_reject = 1 and name in ('{names_str}')")
             t_for_phot = create_tbl_lc(lc_for_phot, outfile='needs_fp.csv', origin = 'fpztf')
     else:
         t_for_phot = tbl_lc
-        candidates_for_phot = set(t_for_phot['name'])
+        if tbl_lc is not None:
+            candidates_for_phot = set(t_for_phot['name'])
+        else:
+            candidates_for_phot = None
     
     
-    # edit script_cron.sh
     
-    
-
     # Populate the database with CLU galaxy catalog crossmatch
     if args.doCLU:
         if args.doWriteDb:
@@ -895,7 +824,7 @@ where hard_reject = 1 and name in ('{names_str}')")
                 con.close()
                 cur.close()
 
-            # Import the relevant function
+            # Import the relevant functions
             from functions_db import populate_table_clu
             populate_table_clu(con, cur, tbl=None,
                                max_dist=100.,
@@ -974,11 +903,12 @@ crossmatching, you need to have --doWriteDb active")
                                              exposure_time = 300,
                                              doSubmission=False)
                                              
-                                             
+    # Run the ForcePhotZTF pipeline on candidates needing forced photometry                                         
     if args.doForcePhot is True and t_for_phot is not None:
         print("----------------------------------------")
         print("Triggering forced photometry...")
-        print("WARNING: ForcePhotZTF doesn't work on new Python env. \n You can activate the old environment and run 'trigger_forcephotztf' instead.")
+        print("WARNING: ForcePhotZTF requires specific environment setup and older package versions. \
+               See https://github.com/yaoyuhan/ForcePhotZTF/blob/master")
         from forcephot import trigger_forced_photometry
 
         # Trigger forced photometry
@@ -1009,8 +939,9 @@ crossmatching, you need to have --doWriteDb active")
             cur.close()
             con.close()
 ##############################################################################
+    #if args.doForcePhot is True and t_for_phot is not None:
     if t_for_phot is not None:
-        # Repeat the selection based on forced photometry from ForcePhotZTF
+        # Repeat the selection based on ForcePhotZTF data 
         print("----------------------------------------------")
         print("Repeating based on ForcePhotZTF photometry...")
         selected, rejected, cantsay = select_variability(t_for_phot,
@@ -1027,7 +958,7 @@ crossmatching, you need to have --doWriteDb active")
                    save_csv=True, path_csv='./lc_csv',
                    path_forced='./')
             
-        # Repeat the selection based on stacked forced photometry (ForcePhotZTF from psql db)
+        # Repeat the selection based on stacked forced photometry
         print("-----------------------------------------------")
         print("Repeating based on stacked forced photometry...")
         selected, rejected, cantsay = select_variability(t_for_phot,
