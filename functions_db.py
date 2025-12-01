@@ -899,7 +899,8 @@ where name in ({str_names})")
     if maxid is None:
         maxid = 0
     
-    tbl_to_write = tbl[tbl['origin'] == 'alertfp']
+    #tbl_to_write = tbl[tbl['origin'] == 'alertfp']
+    tbl_to_write = tbl[:]
     for l in tbl_to_write:
         # Skip if the combination name+jd is already present
         if (l['name'], l['jd']) in names_skip:

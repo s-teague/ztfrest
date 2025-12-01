@@ -159,7 +159,7 @@ def create_tbl_lc(light_curves, outfile=None, origin='alert'):
                l["candidate"]["rcid"], np.array(l["candidate"]["pid"]).astype('uint64'), 
                l["candidate"]["sgscore1"], l["candidate"]["sgscore2"],
                l["candidate"]["sgscore3"], l["candidate"]["distpsnr1"],
-               l["candidate"]["distpsnr2"], l["candidate"]["distpsnr3"], 'alert']
+               l["candidate"]["distpsnr2"], l["candidate"]["distpsnr3"], origin]
         except KeyError:
             row = [l["objectId"], l["candidate"]["ra"], l["candidate"]["dec"],
                l["candidate"]["jd"], l["candidate"]["isdiffpos"], l["candidate"]["magpsf"],
