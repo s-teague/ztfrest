@@ -174,8 +174,9 @@ def plot_lc(name, con, cur, forced=True, stack=False,
     # Alert FP
     else:
         table = 'lightcurve_alertfp'
-        lc = pd.read_sql_query(f"SELECT jd, magpsf, sigmapsf, filter, limmag, programid, origin FROM {table} WHERE name = '{name}'", con)
-        lc["forced"] = np.ones(len(lc))
+        lc = pd.read_sql_query(f"SELECT jd, magpsf, sigmapsf, filter, limmag, programid, origin FROM {table} WHERE name = '{name}'", con) 
+        forced_idx = np.where(lc['origin']=='alertfp')[0]
+        lc["forced"] = [1 if i in forced_idx else 0 for i in range(0, len(lc))]
         #lc_nondet = lc[lc['origin'] == 'magul']
         #lc = lc[lc['origin'] != 'magul']
         lc = lc.rename(columns={'magpsf':'mag', 'sigmapsf':'mag_unc'})
@@ -273,8 +274,8 @@ stack={stack}, plot_alerts={plot_alerts}")
             tf["mag"] = tf["mag"] - 
             tf["limmag"] = tf["limmag"] - 
         """
-        tf_det = tf[(tf['mag'] < 50.) | (tf['mag'] != 'magul')]
-        tf_ul = tf[(tf['mag'] > 50.) | (tf['mag'] == 'magul')]
+        tf_det = tf[(tf['mag'] < 50.) & (tf['origin'] != 'magul')]
+        tf_ul = tf[(tf['mag'] > 50.) | (tf['origin'] == 'magul')]
         
         for isforced in [0,1]:
             if isforced == 0:
