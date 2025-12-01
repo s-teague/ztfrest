@@ -144,8 +144,6 @@ def get_dust_info(coords):
 
     return ebv
 
-# alertfp: Plot alerts + alertfp + alertfp nondets
-# plot_alerts = True, forced = True, stack = False, plot_alertfp = True
 
 def plot_lc(name, con, cur, forced=True, stack=False,
             plot_alerts=True, save=False, reddening=False,
@@ -283,7 +281,7 @@ stack={stack}, plot_alerts={plot_alerts}")
             else:
                 if stack is True:
                     label = f"{f} forced phot stacked"
-                elif forced is True plot_alertfp is False:
+                elif forced is True and plot_alertfp is False:
                     label = f"{f} forced phot"
                 elif plot_alertfp is True:
                     label = f"{f} alert fp"
