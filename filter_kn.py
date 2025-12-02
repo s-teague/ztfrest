@@ -185,7 +185,7 @@ def query_kowalski(kow, list_fields, min_days, max_days,
     #Initialize a set for the results
     set_objectId_all = set([])
     
-    #returned_by_query = []
+    returned_by_query = []
     
     for field in list_fields:
         set_objectId_field = set([])
@@ -939,8 +939,8 @@ crossmatching, you need to have --doWriteDb active")
             cur.close()
             con.close()
 ##############################################################################
-    #if args.doForcePhot is True and t_for_phot is not None:
-    if t_for_phot is not None:
+    #if t_for_phot is not None:
+    if args.doForcePhot is True and t_for_phot is not None:
         # Repeat the selection based on ForcePhotZTF data 
         print("----------------------------------------------")
         print("Repeating based on ForcePhotZTF photometry...")
