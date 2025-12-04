@@ -22,13 +22,17 @@ if __name__ == '__main__':
                         required=False,
                         help="Path to the CSV file including the credentials \
                         to access the psql database", default='db_access.csv')
+    parser.add_argument('--path-input-table', dest='path_input_table', type=str,
+                        required=False,
+                        help="Path to the CSV file including the table of candidates needing ForcePhotZTF",
+                        default='/data/ia/ztfrest_sarah/needs_fp.csv')
     parser.add_argument('--targetdir-base', dest='targetdir_base', type=str,
                         required=False,
                         help='Directory for the forced photometry',
                         default='./forced_photometry/')
     args = parser.parse_args()
     
-    t_for_phot = ascii.read('needs_fp.csv')
+    t_for_phot = ascii.read(args.path_input_table)
 
     if len(t_for_phot) > 0:
         print("----------------------------------------")
