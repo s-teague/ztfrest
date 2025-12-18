@@ -5,7 +5,6 @@ results to database.
 '''
 
 if __name__ == '__main__':
-    print("working on ForcePhotZTF...")
     from astropy.io import ascii
     import argparse
     
@@ -24,7 +23,7 @@ if __name__ == '__main__':
                         to access the psql database", default='db_access.csv')
     parser.add_argument('--path-input-table', dest='path_input_table', type=str,
                         required=False,
-                        help="Path to the CSV file including the table of candidates needing ForcePhotZTF",
+                        help="Path to the CSV file including the table of cnadidates needing ForcePhotZTF",
                         default='/data/ia/ztfrest_sarah/needs_fp.csv')
     parser.add_argument('--targetdir-base', dest='targetdir_base', type=str,
                         required=False,
@@ -38,7 +37,6 @@ if __name__ == '__main__':
         print("----------------------------------------")
         print("Triggering forced photometry pipeline...")
         from forcephot import trigger_forced_photometry
-
         # Trigger forced photometry
         success, _ = trigger_forced_photometry(t_for_phot,
                                                args.targetdir_base,
@@ -46,9 +44,17 @@ if __name__ == '__main__':
                                                daydelta_after=14.)
 
         if args.doWriteDb and len(success) > 0:
-            con, cur = connect_database()
+            from functions_db import connect_database
+
+            con, cur = connect_database(path_secrets_db='/data/ia/ztfrest_sarah/db_access.csv', dbname='db_kn_2025_admin')
             print("----------------------------------------")
             print("Updating database...")
+            cur.execute("select current_database()")
+            current_dbname = cur.fetchall()[0][0]
+            if current_dbname != 'database_kn_2025':
+                print("Wrong database!!! terminating connection...")
+                con.close()
+                cur.close()
             # Update the database with forced photometry
             from functions_db import populate_table_lightcurve_forced
             populate_table_lightcurve_forced(con, cur, t_for_phot,

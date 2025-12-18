@@ -9,6 +9,8 @@ import pdb
 from socket import gethostname
 
 import numpy as np
+np.set_printoptions(legacy="1.25") # for compatibility with psycopg2
+
 from astropy.io import ascii, fits
 from astropy.coordinates import SkyCoord
 import astropy.units as u
@@ -18,7 +20,7 @@ from astropy.cosmology import Planck15 as cosmo
 from astropy.io.misc.hdf5 import read_table_hdf5
 import pandas as pd
 import psycopg2
-from sqlalchemy import create_engine
+#from sqlalchemy import create_engine
 
 # the default connection is the 2025 database
 def connect_database(update_database=False, path_secrets_db='db_access.csv',
@@ -653,7 +655,7 @@ def populate_table_clu(con, cur, tbl=None,
     and it updates clu_match with a boolean value in the
     candidate table.
     '''
-
+    import numpy as np
     if tbl is None:
         # Get candidates that do not have been matched already
         cur.execute("select name, ra, dec from candidate \
@@ -901,6 +903,7 @@ where name in ({str_names})")
     
     #tbl_to_write = tbl[tbl['origin'] == 'alertfp']
     tbl_to_write = tbl[:]
+    
     for l in tbl_to_write:
         # Skip if the combination name+jd is already present
         if (l['name'], l['jd']) in names_skip:

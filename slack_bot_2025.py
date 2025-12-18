@@ -130,7 +130,7 @@ def run_on_event(channel_id, program_ids=[1,2], bypass=False,
     list_filters = ['g', 'r', 'i']
 
     # Rise, fade, or both? (list, e.g. ['rise', 'fade'])
-    list_rise_fade = ['fade', 'rise']
+    list_rise_fade = ['fade']
 
     scores = {'rise_select': 5,
               'rise_pen': 0,
@@ -345,7 +345,8 @@ def run_on_event(channel_id, program_ids=[1,2], bypass=False,
     index_fade_g, index_fade_r, index_fade_i, \
     index_fade_alertfp_g, index_fade_alertfp_r, index_fade_alertfp_i, \
     index_fade_forced_g, index_fade_forced_r, index_fade_forced_i, \
-    index_fade_stack_g, index_fade_stack_r, index_fade_stack_i \
+    index_fade_stack_g, index_fade_stack_r, index_fade_stack_i, \
+    index_nondet_rise_g, index_nondet_rise_r, index_nondet_rise_i \
     FROM candidate WHERE name IN ({names_str})"
     
     elif use_new_db is False and 'rise' in list_rise_fade:
@@ -431,6 +432,7 @@ WHERE name in ({names_str}) and mag < 50",con)
         ti = indexes[indexes['name'] == name]
         # Replace None with NaN
         ti = ti.fillna(value=np.nan)
+        message.append("-----------------------------------------------------------")
         message.append(f"Fade rate *alerts*: \
 g: {'{:.2f}'.format(ti['index_fade_g'].values[0])}, \
 r: {'{:.2f}'.format(ti['index_fade_r'].values[0])}, \
@@ -441,7 +443,7 @@ i: {'{:.2f}'.format(ti['index_fade_i'].values[0])} mag/d")
 g: {'{:.2f}'.format(ti['index_fade_alertfp_g'].values[0])}, \
 r: {'{:.2f}'.format(ti['index_fade_alertfp_r'].values[0])}, \
 i: {'{:.2f}'.format(ti['index_fade_alertfp_i'].values[0])} mag/d")
-            message.append(f"Rise inferred from *non-detections*: \
+            message.append(f"Rise inferred from *upper limits*: \
 g: {'{:.2f}'.format(ti['index_nondet_rise_g'].values[0])}, \
 r: {'{:.2f}'.format(ti['index_nondet_rise_r'].values[0])}, \
 i: {'{:.2f}'.format(ti['index_nondet_rise_i'].values[0])} mag/d")
@@ -611,3 +613,4 @@ if __name__ == "__main__":
         except:
             pass
         time.sleep(15)
+

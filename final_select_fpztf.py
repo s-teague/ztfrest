@@ -4,7 +4,6 @@ Necessary because ForcePhotZTF only works in old python env
 '''
 
 if __name__ == '__main__':
-    print("final_select_fpztf working")
     from astropy.io import ascii
     import argparse
     
