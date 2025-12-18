@@ -801,7 +801,7 @@ where hard_reject = 1 and name in ('{names_str}')")
                                                 candidates_for_phot)
             # Create a table in the right format
             # record candidates needing ForcePhotZTF, so it can be triggered separately -- have inputted outfile argument here
-            t_for_phot = create_tbl_lc(lc_for_phot, outfile='needs_fp.csv', origin = 'fpztf')
+            t_for_phot = create_tbl_lc(lc_for_phot, outfile='../ztfrest/needs_fp.csv', origin = 'fpztf')
     else:
         t_for_phot = tbl_lc
         if tbl_lc is not None:
